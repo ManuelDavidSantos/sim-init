@@ -11,15 +11,14 @@
 
 int run_proc(char *name, int len){
 
-  char p_name[len+2];
-  p_name[0]='.';
-  p_name[1]='/';
-
-  for(int i = 2; i<=len+2; i++){
-    p_name[i]=name[i-2];
-  }
-
-  char *env[]={0};
+  char *dir="/etc/sv/";
+  int  dir_len = 8;//strlen(dir);
+  char p_name[len+dir_len];
+  
+  strcpy(p_name,"/etc/sv/"); 
+  strcat(p_name,name);
+  
+  printf("\ndoing:  %s\n",p_name);
 
   pid_t pid = fork();
   if(pid < 0){
@@ -27,10 +26,9 @@ int run_proc(char *name, int len){
     exit(0);
   }
   if(pid == 0){
-    execve(p_name,NULL,env);
-
+    execvp(p_name,NULL);
     //ejecutado en el raro caso que execve falle y caiga aca la ejecucion
-    perror("Failed to execve \n");
+    perror("\nFailed to execvp \n");
     exit(0);
   }
   if(pid > 0){
@@ -74,7 +72,7 @@ int main(int argc, char * argv[]){
   printf("\n RUNNING\n");
   fflush(stdout);
   
-  FILE *fd = fopen("./list","r");
+  FILE *fd = fopen("/etc/sinit/list","r");
   
   if (fd == NULL){
     perror("\nFile could not be opened\n");
@@ -97,8 +95,7 @@ int main(int argc, char * argv[]){
     }
   }
 
-  run_bin("kitty",strlen("kitty"));
-  run_bin("") 
+  //run_bin("kitty",strlen("kitty"));
   fclose(fd);
   printf("\nDONE\n");
 
