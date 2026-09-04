@@ -1,0 +1,289 @@
+#!/bin/sh
+# vim: set ts=4 sw=4 et:
+
+PATH=/usr/bin:/usr/sbin
+
+msg() {
+    # bold
+    printf "\033[1m=> $@\033[m\n"
+}
+
+msg_ok() {
+    # bold/green
+    printf "\033[1m\033[32m OK\033[m\n"
+}
+
+msg_error() {
+    # bold/red
+    printf "\033[1m\033[31mERROR: $@\033[m\n"
+}
+
+msg_warn() {
+    # bold/yellow
+    printf "\033[1m\033[33mWARNING: $@\033[m\n"
+}
+
+emergency_shell() {
+    echo
+    echo "Cannot continue due to errors above, starting emergency shell."
+    echo "When ready type exit to continue booting."
+    /bin/sh -l
+}
+
+detect_container() {
+    # LXC, podman
+    [ -z "${container+x}" ] || export IS_CONTAINER=1
+    [ -e /.dockerenv ] && export IS_CONTAINER=1
+
+    # backcompat
+    [ -n "$IS_CONTAINER" ] && export VIRTUALIZATION=1
+}
+
+deactivate_vgs() {
+    _group=${1:-All}
+    if [ -x /sbin/vgchange -o -x /bin/vgchange ]; then
+        vgs=$(vgs|wc -l)
+        if [ $vgs -gt 0 ]; then
+            msg "Deactivating $_group LVM Volume Groups..."
+            vgchange -an
+        fi
+    fi
+}
+
+deactivate_crypt() {
+    if [ -x /sbin/dmsetup -o -x /bin/dmsetup ]; then
+        msg "Deactivating Crypt Volumes"
+        for v in $(dmsetup ls --target crypt --exec "dmsetup info -c --noheadings -o open,name"); do
+            [ ${v%%:*} = "0" ] && cryptsetup close ${v##*:} && msg "[crypt] successfully closed: ${v##*:}"
+        done
+        deactivate_vgs "Crypt"
+    fi
+}
+
+msg "Welcome to Void!"
+
+msg "Initiating..."
+
+[ -r /etc/rc.conf ] && . /etc/rc.conf
+
+msg "Mounting pseudo-filesystems..."
+mountpoint -q /proc || mount -o nosuid,noexec,nodev -t proc proc /proc
+mountpoint -q /sys || mount -o nosuid,noexec,nodev -t sysfs sys /sys
+mountpoint -q /run || mount -o mode=0755,nosuid,nodev -t tmpfs run /run
+mountpoint -q /dev || mount -o mode=0755,nosuid -t devtmpfs dev /dev
+mkdir -p -m0755 /run/runit /run/lvm /run/user /run/lock /run/log /dev/pts /dev/shm
+mountpoint -q /dev/pts || mount -o mode=0620,gid=5,nosuid,noexec -n -t devpts devpts /dev/pts
+mountpoint -q /dev/shm || mount -o mode=1777,nosuid,nodev -n -t tmpfs shm /dev/shm
+mountpoint -q /sys/kernel/security || mount -n -t securityfs securityfs /sys/kernel/security
+
+if [ -d /sys/firmware/efi/efivars ]; then
+    mountpoint -q /sys/firmware/efi/efivars || mount -o nosuid,noexec,nodev -t efivarfs efivarfs /sys/firmware/efi/efivars
+fi
+
+for f in $(kmod static-nodes -f devname 2>/dev/null|cut -d' ' -f1); do
+	modprobe -bq $f 2>/dev/null
+done
+
+# Do not try to load modules if kernel does not support them.
+[ ! -e /proc/modules ] && return 0
+
+msg "Loading kernel modules..."
+modules-load -v | tr '\n' ' ' | sed 's:insmod [^ ]*/::g; s:\.ko\(\.gz\)\? ::g'
+echo
+
+if [ -x /usr/lib/systemd/systemd-udevd ]; then
+    _udevd=/usr/lib/systemd/systemd-udevd
+elif [ -x /sbin/udevd -o -x /bin/udevd ]; then
+    _udevd=udevd
+else
+    msg_warn "cannot find udevd!"
+fi
+
+if [ -n "${_udevd}" ]; then
+    msg "Starting udev and waiting for devices to settle..."
+    ${_udevd} --daemon
+    udevadm trigger --action=add --type=subsystems
+    udevadm trigger --action=add --type=devices
+    udevadm settle
+fi
+
+TTYS=${TTYS:-12}
+if [ -n "$FONT" ]; then
+    msg "Setting up TTYs font to '${FONT}'..."
+
+    _index=0
+    while [ ${_index} -le $TTYS ]; do
+        setfont ${FONT_MAP:+-m $FONT_MAP} ${FONT_UNIMAP:+-u $FONT_UNIMAP} \
+                $FONT -C "/dev/tty${_index}"
+        _index=$((_index + 1))
+    done
+fi
+
+if [ -n "$KEYMAP" ]; then
+    msg "Setting up keymap to '${KEYMAP}'..."
+    loadkeys -q -u ${KEYMAP}
+fi
+
+if [ -n "$HARDWARECLOCK" ]; then
+    msg "Setting up RTC to '${HARDWARECLOCK}'..."
+    TZ=$TIMEZONE hwclock --systz \
+        ${HARDWARECLOCK:+--$(echo $HARDWARECLOCK |tr A-Z a-z) --noadjfile} || emergency_shell
+fi
+
+msg "Remounting rootfs read-only..."
+LIBMOUNT_FORCE_MOUNT2=always mount -o remount,ro / || emergency_shell
+
+if [ -x /sbin/dmraid -o -x /bin/dmraid ]; then
+    msg "Activating dmraid devices..."
+    dmraid -i -ay
+fi
+
+if [ -x /bin/mdadm ]; then
+    msg "Activating software RAID arrays..."
+    mdadm -As
+fi
+
+if [ -x /bin/btrfs ]; then
+    msg "Activating btrfs devices..."
+    btrfs device scan || emergency_shell
+fi
+
+if [ -x /sbin/vgchange -o -x /bin/vgchange ]; then
+    msg "Activating LVM devices..."
+    vgchange --sysinit -a ay || emergency_shell
+fi
+
+if [ -e /etc/crypttab ]; then
+    msg "Activating encrypted devices..."
+    awk -f /etc/runit/crypt.awk /etc/crypttab
+
+    if [ -x /sbin/vgchange -o -x /bin/vgchange ]; then
+        msg "Activating LVM devices for dm-crypt..."
+        vgchange --sysinit -a ay || emergency_shell
+    fi
+fi
+
+if [ -x /usr/bin/zpool -a -x /usr/bin/zfs ]; then
+    if [ -e /etc/zfs/zpool.cache ]; then
+        msg "Importing cached ZFS pools..."
+        zpool import -N -a -c /etc/zfs/zpool.cache
+    else
+        msg "Scanning for and importing ZFS pools..."
+        zpool import -N -a -o cachefile=none
+    fi
+
+    msg "Mounting ZFS file systems..."
+    zfs mount -a -l
+
+    msg "Sharing ZFS file systems..."
+    zfs share -a
+
+    # NOTE(dh): ZFS has ZVOLs, block devices on top of storage pools.
+    # In theory, it would be possible to use these as devices in
+    # dmraid, btrfs, LVM and so on. In practice it's unlikely that
+    # anybody is doing that, so we aren't supporting it for now.
+fi
+
+[ -f /fastboot ] && FASTBOOT=1
+[ -f /forcefsck ] && FORCEFSCK="-f"
+for arg in $(cat /proc/cmdline); do
+    case $arg in
+        fastboot) FASTBOOT=1;;
+        forcefsck) FORCEFSCK="-f";;
+    esac
+done
+
+if [ -z "$FASTBOOT" ]; then
+    msg "Checking filesystems:"
+    fsck -A -T -a -t noopts=_netdev $FORCEFSCK
+    if [ $? -gt 1 ]; then
+        emergency_shell
+    fi
+fi
+
+msg "Mounting rootfs read-write..."
+LIBMOUNT_FORCE_MOUNT2=always mount -o remount,rw / || emergency_shell
+
+msg "Mounting all non-network filesystems..."
+mount -a -t "nosysfs,nonfs,nonfs4,nosmbfs,nocifs" -O no_netdev || emergency_shell
+
+msg "Initializing swap..."
+swapon -a || emergency_shell
+
+
+install -m0664 -o root -g utmp /dev/null /run/utmp
+halt -B  # for wtmp
+
+msg "Setting up loopback interface..."
+ip link set up dev lo
+
+[ -r /etc/hostname ] && read -r HOSTNAME < /etc/hostname
+if [ -n "$HOSTNAME" ]; then
+    msg "Setting up hostname to '${HOSTNAME}'..."
+    printf "%s" "$HOSTNAME" > /proc/sys/kernel/hostname
+else
+    msg_warn "Didn't setup a hostname!"
+fi
+
+if [ -n "$TIMEZONE" ]; then
+    msg "Setting up timezone to '${TIMEZONE}'..."
+    ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
+fi
+
+
+if [ -x /sbin/sysctl -o -x /bin/sysctl ]; then
+    msg "Loading sysctl(8) settings..."
+    mkdir -p /run/vsysctl.d
+    for i in /run/sysctl.d/*.conf \
+        /etc/sysctl.d/*.conf \
+        /usr/local/lib/sysctl.d/*.conf \
+        /usr/lib/sysctl.d/*.conf; do
+
+        if [ -e "$i" ] && [ ! -e "/run/vsysctl.d/${i##*/}" ]; then
+            ln -s "$i" "/run/vsysctl.d/${i##*/}"
+        fi
+    done
+    for i in /run/vsysctl.d/*.conf; do
+        sysctl -p "$i"
+    done
+    rm -rf -- /run/vsysctl.d
+    sysctl -p /etc/sysctl.conf
+fi
+
+dmesg >/var/log/dmesg.log
+if [ $(sysctl -n kernel.dmesg_restrict 2>/dev/null) -eq 1 ]; then
+	chmod 0600 /var/log/dmesg.log
+else
+	chmod 0644 /var/log/dmesg.log
+fi
+
+
+if [ -d /usr/sbin -a ! -L /usr/sbin ]; then
+	for f in /usr/sbin/*; do
+		if [ -f $f -a ! -L $f ]; then
+			msg "Detected $f file, can't create /usr/sbin symlink."
+			return 0
+		fi
+	done
+	msg "Creating /usr/sbin -> /usr/bin symlink, moving existing to /usr/sbin.old"
+	mv /usr/sbin /usr/sbin.old
+	ln -sf bin /usr/sbin
+fi
+
+
+if [ ! -e /var/log/wtmp ]; then
+	install -m0664 -o root -g utmp /dev/null /var/log/wtmp
+fi
+if [ ! -e /var/log/btmp ]; then
+	install -m0600 -o root -g utmp /dev/null /var/log/btmp
+fi
+if [ ! -e /var/log/lastlog ]; then
+	install -m0600 -o root -g utmp /dev/null /var/log/lastlog
+fi
+install -dm1777 /tmp/.X11-unix /tmp/.ICE-unix
+rm -f /etc/nologin /forcefsck /forcequotacheck /fastboot
+
+if grep -qF 'live.accessibility' /proc/cmdline >/dev/null 2>&1; then
+	live-audio -u 2>&1 | tee /tmp/live-audio.log
+	live-audio -p 2>&1 | tee -a /tmp/live-audio.log
+fi
