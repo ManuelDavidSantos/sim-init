@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <wait.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -18,7 +19,10 @@ int run_proc(char *name, int n_len, char *path, int p_len){
   strcpy(p_name,path); 
   strcat(p_name,name);
   
-  printf("\nexecuting:  %s\n",p_name);
+  char * argv[] = {
+    p_name,
+    NULL
+  };
 
   pid_t pid = fork();
   if(pid < 0){
@@ -26,8 +30,18 @@ int run_proc(char *name, int n_len, char *path, int p_len){
     exit(0);
   }
   if(pid == 0){
-    execvp(p_name,NULL);
-    //ejecutado en el raro caso que execve falle y caiga aca la ejecucion
+    printf("\nexecuting:%s\n",p_name);
+    fflush(stdout);
+    
+    /*
+    if(setsid() < 0){
+      perror("\nfailed to setsid during run_proc\n");
+      exit(1);
+    }
+    */
+
+    execvp(p_name,argv);
+
     perror("\nFailed to execvp \n");
     exit(0);
   }
@@ -36,7 +50,6 @@ int run_proc(char *name, int n_len, char *path, int p_len){
     wait(NULL);
   }
   */
-  
   return 0;
 }
 
@@ -48,7 +61,12 @@ int setup(pid_t my_pid,char * envp[]){
   prog[1] = "./core/basics";
   
   int option = (my_pid == 1) ? 0 : 1;
-  
+
+  char * argv[] = {
+    "basics",
+    NULL
+  };  
+ 
   pid_t pid = fork();
 
   if(pid < 0){
@@ -56,14 +74,18 @@ int setup(pid_t my_pid,char * envp[]){
     exit(0);
   }
   if(pid == 0){
-    execve(prog[option], (char *const*)prog , envp);
+    execve(prog[option], argv , envp);
     
-    perror("Failed to execve \n");
+    perror("Failed to setup\n");
     exit(0);
   }
   
   if(pid > 0){
-    wait(NULL);
+    int status;
+    waitpid(pid, &status, 0);  // Block until setup finishes
+    if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        fprintf(stderr, "Setup failed with exit code %d\n", WEXITSTATUS(status));
+    }
   }
 
   return 0;
@@ -79,7 +101,22 @@ int main(int argc, char * argv[], char * envp[]){
   setup(my_pid,envp);
   
   printf("\nSETUP DONE\n");
-
+  fflush(stdout);
+  
+  /*
+  // Detach from console
+  int nullfd;
+  if( (nullfd = open("/dev/null", O_RDWR) ) == -1){
+    perror("\nFailed to redirect init output to /dev/null\n");
+    exit(1);
+  }
+  dup2(nullfd, 0);
+  dup2(nullfd, 1);
+  dup2(nullfd, 2);
+  close(nullfd);
+  */
+  
+  // run default runlevel
   char * rlpaths[2] = {
     "/etc/simnit/r0",
     "./core/r0"
@@ -121,6 +158,9 @@ int main(int argc, char * argv[], char * envp[]){
         }
         n_len = 0;
         is_path = 0;
+        
+        cur = fgetc(fd);
+
       }else{
         run_proc(&name[0],n_len,path,p_len);
         cur = fgetc(fd);
@@ -132,14 +172,21 @@ int main(int argc, char * argv[], char * envp[]){
         is_path = 1;
       }
       name[n_len] = cur;
-      name[n_len+1]='\0';
+      if( n_len+1 <NAMESIZE ){
+        name[n_len+1]='\0';
+      }else{
+        perror("\nMaximum name size reached, exiting\n");
+        exit(1);
+      }
       n_len++;
       cur = fgetc(fd);
     }
   }
 
   fclose(fd);
-  printf("\nDONE\n");
 
+  while(1){
+    sleep(5);
+  };
   return 0;
 }
