@@ -57,18 +57,20 @@ int main(int argc, char *argv[], char *envp[]){
       }
     }    
     strcat(dir_path,"/log");
-    printf("Path:%s\n",dir_path);
+    
+    //printf("Path:%s\n",dir_path);
 
     int fd = open(dir_path, O_APPEND | O_CREAT | O_WRONLY | O_CLOEXEC, 0644);
 
     close(spipe[0]);
     dup2(fd, STDOUT);
-    for(int i = 0; i<10; i++){
-      char * txt="Hiii\n";
-      printf("%s",txt);
-      fflush(stdout);
-      sleep(1);
-    }
+    char * args[] = {
+      argv[1],
+      NULL
+    }; 
+
+    execvp(argv[1], args);
+
   }
   if(mypid > 0){
     //PARENT

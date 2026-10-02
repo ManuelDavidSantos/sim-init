@@ -1,8 +1,10 @@
 #include <stdio.h>
+#include <unistd.h>
 int main(int argc, char * argv[]){
-  printf("\nhii\n");
+  printf("Initiating daemon...\n");
   int i = 0;
-  while(i <5){
+  while(1){
+    sleep(10);
     printf("%i\n",i++);
   }
   return 0;
