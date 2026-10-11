@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 #include "stddef.h"
 
@@ -25,6 +26,9 @@ Read pipe
 Write to file if specified
 
 */
+
+// USAGE
+// supervised [path/to/file] <file_name>
 int main(int argc, char *argv[], char *envp[]){
   if(argc < 3){
     perror("Not enough arguments provided\n");
@@ -37,6 +41,11 @@ int main(int argc, char *argv[], char *envp[]){
     exit(1);
   }
 
+
+  if (prctl(PR_SET_CHILD_SUBREAPER, 1) == -1) {
+    perror("prctl(PR_SET_CHILD_SUBREAPER)");
+  }
+  
   pid_t mypid = fork();
 
   if(mypid < 0){
@@ -46,7 +55,7 @@ int main(int argc, char *argv[], char *envp[]){
   if(mypid==0){
     //CHILD
 
-    char dir_path[256]="/home/manuel/services/";
+    char dir_path[256]="/home/voidy/services/";
     strcat(dir_path, argv[2]);
 
     struct stat st = {0};
@@ -73,9 +82,22 @@ int main(int argc, char *argv[], char *envp[]){
 
   }
   if(mypid > 0){
+    int childpid = mypid;
+
     //PARENT
+    /*
+      Get CHILD PID
+      Check if it is running, if not call for a restart
+      If user requests stop, send kill signal,
+      Reap orphans, force kill orphans maybe
+    */
+
     close(spipe[1]);
-    while(wait(NULL) > 0);
+    while(wait(NULL));
   }
   return 0;
 }
+
+
+
+
