@@ -154,19 +154,6 @@ int main(int argc, char * argv[], char * envp[]){
   printf("\nSETUP DONE\n");
   fflush(stdout);
   
-  /*
-  // Detach from console
-  int nullfd;
-  if( (nullfd = open("/dev/null", O_RDWR) ) == -1){
-    perror("\nFailed to redirect init output to /dev/null\n");
-    exit(1);
-  }
-  dup2(nullfd, 0);
-  dup2(nullfd, 1);
-  dup2(nullfd, 2);
-  close(nullfd);
-  */
-  
   // run default runlevel
   char * rlpaths[2] = {
     "/etc/simnit/r0",

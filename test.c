@@ -12,5 +12,10 @@ int main(int argc, char *argv[], char * envp[])
   printf("%s\n",text);
   strcpy(text, sst);
   printf("%s\n",text);
+  while(1){
+    usleep(100000);
+    printf("hehehe");
+    fflush(stdout);
+  }
   return 0;
 }
