@@ -1,7 +1,10 @@
 #include <errno.h>
 #include <stdlib.h>
+#include <sys/reboot.h>
+#include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
+#include <sys/syscall.h>
+#include <linux/reboot.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <wait.h>
@@ -13,17 +16,23 @@
 #define NAMESIZE 256
 #define PATHSIZE 256
 
+volatile sig_atomic_t pwroff = 0;
+
+void sigusr1_handler(int signum){
+  pwroff = 1;
+}
+
 void sigchld_handler(int signum) {
-    // Save errno to avoid it being clobbered by the handler
-    int saved_errno = errno;
-    
-    // Reap all available zombie children
-    while (waitpid(-1, NULL, WNOHANG) > 0) {
-        // Loop continues as long as there are children to reap
-    }
-    
-    // Restore errno
-    errno = saved_errno;
+  // Save errno to avoid it being clobbered by the handler
+  int saved_errno = errno;
+  
+  // Reap all available zombie children
+  while (waitpid(-1, NULL, WNOHANG) > 0) {
+    // Loop continues as long as there are children to reap
+  }
+  
+  // Restore errno
+  errno = saved_errno;
 }
 
 int run_proc(char *name, int n_len, char *path, int p_len){
@@ -48,27 +57,15 @@ int run_proc(char *name, int n_len, char *path, int p_len){
     printf("\nexecuting:%s\n",p_name);
     fflush(stdout);
     
-    /*
-    if(setsid() < 0){
-      perror("\nfailed to setsid during run_proc\n");
-      exit(1);
-    }
-    */
-
     execvp(p_name,argv);
 
     perror("\nFailed to execvp \n");
     exit(0);
   }
-  /*
-  if(pid > 0){
-    wait(NULL);
-  }
-  */
   return 0;
 }
 
-int run_sproc(char *name, int n_len, char *path, int p_len){
+pid_t run_sproc(char *name, int n_len, char *path, int p_len){
   
   int length = n_len+p_len; 
   char p_name[length];
@@ -136,6 +133,41 @@ int setup(pid_t my_pid,char * envp[]){
     }
   }
 
+  return 0;
+}
+
+int power_off(pid_t *list, int len, char  * envp[]){
+  char * argv[] = {
+    "shutdown",
+    NULL
+  };  
+ 
+  pid_t pid = fork();
+
+  if(pid < 0){
+    perror("Error forking process\n");
+    exit(0);
+  }
+  if(pid == 0){
+    execve("/etc/simnit/shutdown", argv , envp);
+    
+    perror("Failed to shutdown\n");
+    exit(0);
+  }
+  
+  if(pid > 0){
+    int status;
+    waitpid(pid, &status, 0);  // Block until setup finishes
+    if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        fprintf(stderr, "Shutdown failed with exit code %d\n", WEXITSTATUS(status));
+    }
+  }
+  
+
+  kill(-1, SIGKILL);
+  sync();
+  void *vargs =NULL;
+  syscall(SYS_reboot,LINUX_REBOOT_MAGIC1,LINUX_REBOOT_MAGIC2,LINUX_REBOOT_CMD_POWER_OFF,vargs);
   return 0;
 }
 
@@ -227,7 +259,8 @@ int main(int argc, char * argv[], char * envp[]){
   // REAPER
   
   // Set up the SIGCHLD handler
-  struct sigaction sa;
+  struct sigaction sa,sa2;
+
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = sigchld_handler;
   sigemptyset(&sa.sa_mask);
@@ -235,6 +268,16 @@ int main(int argc, char * argv[], char * envp[]){
 
   if (sigaction(SIGCHLD, &sa, NULL) == -1) {
       perror("sigaction(SIGCHLD)");
+      return 1;
+  }
+  
+  memset(&sa2, 0, sizeof(sa2));
+  sa2.sa_handler = sigusr1_handler;
+  sigemptyset(&sa2.sa_mask);
+  sa2.sa_flags = 0;  // Don't reap STOPPED processes
+
+  if (sigaction(SIGUSR1, &sa2, NULL) == -1) {
+      perror("sigaction(SIGUSR1)");
       return 1;
   }
 
@@ -249,6 +292,9 @@ int main(int argc, char * argv[], char * envp[]){
 
   while (1) {
     sigsuspend(&orig);
+    if(pwroff == 1){
+      power_off(plist,plist_len,envp);
+    }
   }
   return 0;
 }
