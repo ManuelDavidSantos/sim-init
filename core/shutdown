@@ -68,8 +68,15 @@ halt -w
 
 msg "Sending TERM signal to processes..."
 pkill --inverse -s0,1 -TERM
-sleep 1
+sleep 3
 msg "Sending KILL signal to processes..."
 pkill --inverse -s0,1 -KILL
+
+msg "Unmounting file systems..."
+
+umount -a -r
+
+msg "Mounting root read-only..."
+mount -o remount,ro /
 
 sync

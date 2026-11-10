@@ -102,7 +102,7 @@ int setup(pid_t my_pid,char * envp[]){
 
   const char * prog[2];
   
-  prog[0] = "/etc/simnit/basics";
+  prog[0] = "/etc/sim-init/basics";
   prog[1] = "./core/basics";
   
   int option = (my_pid == 1) ? 0 : 1;
@@ -149,7 +149,7 @@ int power_off(pid_t *list, int len, char  * envp[]){
     exit(0);
   }
   if(pid == 0){
-    execve("/etc/simnit/shutdown", argv , envp);
+    execve("/etc/sim-init/shutdown", argv , envp);
     
     perror("Failed to shutdown\n");
     exit(0);
@@ -188,7 +188,7 @@ int main(int argc, char * argv[], char * envp[]){
   
   // run default runlevel
   char * rlpaths[2] = {
-    "/etc/simnit/r0",
+    "/etc/sim-init/r0",
     "./core/r0"
   };
  
