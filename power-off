@@ -1,0 +1,5 @@
+#!/bin/sh
+
+kill -10 1
+
+#That's it, keep it stupid-simple.
