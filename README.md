@@ -39,12 +39,12 @@ La sintaxis del archivo se compone de bloques consecutivos con la siguiente estr
 
 Donde:
 
-<PATH>
+PATH
     Es una línea de texto que termina en "/".
     Establece el directorio base de trabajo para las líneas
     subsiguientes. (ej. /etc/services/).
 
-<FILE_NAME>
+FILE_NAME
     Es una línea de texto que NO CONTIENE "/".
     Representa el nombre de un ejecutable o script ubicado en
     el <PATH> actual (ej. dbus, tty1).
@@ -97,12 +97,12 @@ The file syntax consists of consecutive blocks with the following structure:
 
 Where:
 
-<PATH>
+PATH
     Is a line of text that ends with "/".
     It establishes the base working directory for the subsequent
     lines (e.g., /etc/services/).
 
-<FILE_NAME>
+FILE_NAME
     Is a line of text that DOES NOT CONTAIN "/".
     It represents the name of an executable or script located in
     the current <PATH> (e.g., dbus, tty1).
