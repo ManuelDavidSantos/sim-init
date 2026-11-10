@@ -38,6 +38,7 @@ La sintaxis del archivo se compone de bloques consecutivos con la siguiente estr
 ```
 
 Donde:
+
 <PATH>
     Es una línea de texto que termina en "/".
     Establece el directorio base de trabajo para las líneas
@@ -95,6 +96,7 @@ The file syntax consists of consecutive blocks with the following structure:
 ```
 
 Where:
+
 <PATH>
     Is a line of text that ends with "/".
     It establishes the base working directory for the subsequent
