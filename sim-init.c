@@ -207,8 +207,9 @@ int main(int argc, char * argv[], char * envp[]){
 
   int n_len = 0;
   int p_len = 0;
+  int errlog = 0;
   char data[256];
-  char cur = fgetc(fd);
+  int cur = fgetc(fd);
   char name[NAMESIZE];
   char path[PATHSIZE];
   int is_path = 0;
@@ -247,7 +248,8 @@ int main(int argc, char * argv[], char * envp[]){
         name[n_len+1]='\0';
       }else{
         perror("\nMaximum name size reached, exiting\n");
-        exit(1);
+        errlog = 1;
+        break; //sinful break
       }
       n_len++;
       cur = fgetc(fd);
@@ -256,6 +258,10 @@ int main(int argc, char * argv[], char * envp[]){
 
   fclose(fd);
 
+  // TODO: Add error handling for this case
+  if(errlog == 1){
+    printf("HA\n");
+  }
   // REAPER
   
   // Set up the SIGCHLD handler
