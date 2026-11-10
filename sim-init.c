@@ -13,8 +13,8 @@
 #include <signal.h>
 #include "string.h"
 
-#define NAMESIZE 256
-#define PATHSIZE 256
+#define NAMESIZE 1024
+#define PATHSIZE 1024
 
 volatile sig_atomic_t pwroff = 0;
 
