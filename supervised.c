@@ -107,6 +107,12 @@ int main(int argc, char *argv[], char *envp[]){
     perror("Not enough arguments provided\n");
     exit(1);
   }
+  
+  int one_shot = 0;
+
+  if(argc == 4 && *argv[3] == 'o'){
+    one_shot = 1;
+  }
 
   //step 1
   
@@ -172,7 +178,7 @@ int main(int argc, char *argv[], char *envp[]){
   int status;
   pid_t cpid;
   while(kill_signal_received == 0){
-    if(service_returned_unexpectedly == 1){
+    if(service_returned_unexpectedly == 1 && one_shot == 0){
       childpid = run_service(argv);
       if(childpid == -1){
         perror("Failed to start service\n");
@@ -182,22 +188,24 @@ int main(int argc, char *argv[], char *envp[]){
     sigsuspend(&sigs);
   }
   
-  kill(-childpid,SIGTERM);
-  int count = 0;
-  while(cpid != childpid && cpid > 0 && count < 50){
-    cpid = waitpid(-1,&status,WNOHANG);
-    usleep(100000);
-    count++;
+  if(one_shot == 0){
+    kill(-childpid,SIGTERM);
+    int count = 0;
+    while(cpid != childpid && cpid > 0 && count < 50){
+      cpid = waitpid(-1,&status,WNOHANG);
+      usleep(100000);
+      count++;
+    }
+    kill(-childpid,SIGKILL);
+    while((cpid = waitpid(-1,&status,WNOHANG)) > 0);
+    //PARENT
+    /*
+      Get CHILD PID
+      Check if it is running, if not call for a restart
+      If user requests stop, send kill signal,
+      Reap orphans, force kill orphans maybe
+    */
   }
-  kill(-childpid,SIGKILL);
-  while((cpid = waitpid(-1,&status,WNOHANG)) > 0);
-  //PARENT
-  /*
-    Get CHILD PID
-    Check if it is running, if not call for a restart
-    If user requests stop, send kill signal,
-    Reap orphans, force kill orphans maybe
-  */
 
   return 0;
 }

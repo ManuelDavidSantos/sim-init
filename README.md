@@ -16,6 +16,10 @@ SimpleInit y Supervised consisten de un solo binario cada uno, ambos residen en 
 |   supervised
 |   power-off
 ...
+/var/
+|   log/
+|   |   services/
+...
 /etc/
 |   sim-init/
 |   |       r0
@@ -72,6 +76,10 @@ SimpleInit and Supervised each consist of a single binary; both reside in `/bin`
 |   sim-init
 |   supervised
 |   power-off
+...
+/var/
+|   log/
+|   |   services/
 ...
 /etc/
 |   sim-init/
