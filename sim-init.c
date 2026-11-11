@@ -67,7 +67,7 @@ int run_proc(char *name, int n_len, char *path, int p_len){
 
 pid_t run_sproc(char *name, int n_len, char *path, int p_len){
   
-  int length = n_len+p_len; 
+  int length = n_len+p_len+1; 
   char p_name[length];
   
   strcpy(p_name,path); 
@@ -83,7 +83,7 @@ pid_t run_sproc(char *name, int n_len, char *path, int p_len){
   pid_t pid = fork();
   if(pid < 0){
     perror("Error forking process\n");
-    exit(0);
+    return -1;
   }
   if(pid == 0){
     printf("\nexecuting:%s\n",p_name);
@@ -92,7 +92,7 @@ pid_t run_sproc(char *name, int n_len, char *path, int p_len){
     execvp("/bin/supervised",argv);
 
     perror("\nFailed to execvp \n");
-    exit(0);
+    _exit(1);
   }
   
   return pid;
