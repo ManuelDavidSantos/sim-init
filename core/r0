@@ -1,2 +1,3 @@
-./
-p1
+/etc/sim-init/
+tty1
+tty2
