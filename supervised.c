@@ -199,6 +199,11 @@ int main(int argc, char *argv[], char *envp[]){
 
   int childpid = run_service(argv);
   
+  if(set_service_state_up(argv) == -1){
+    perror("Failed to set service state\n");
+    exit(1);
+  }
+
   if(childpid == -1){
     perror("Failed to start service\n");
     exit(1);
@@ -242,10 +247,6 @@ int main(int argc, char *argv[], char *envp[]){
         perror("Failed to start service\n");
         exit(1);
       }
-      if(set_service_state_up(argv) == -1){
-        perror("Failed to set service state\n");
-        exit(1);
-      }
     }
     sigsuspend(&sigs);
   }
@@ -268,7 +269,11 @@ int main(int argc, char *argv[], char *envp[]){
       Reap orphans, force kill orphans maybe
     */
   }
-
+  
+  if(set_service_state_down(argv) == -1){
+    perror("Failed to set service state\n");
+    exit(1);
+  }
   return 0;
 }
 
