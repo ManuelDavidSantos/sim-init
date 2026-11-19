@@ -15,7 +15,7 @@
 
 #define NAMESIZE 1024
 #define PATHSIZE 1024
-
+#define SERVICE_PATH "/etc/services/"
 volatile sig_atomic_t pwroff = 0;
 
 void sigusr1_handler(int signum){
@@ -211,9 +211,44 @@ int main(int argc, char * argv[], char * envp[]){
   char data[256];
   int cur = fgetc(fd);
   char name[NAMESIZE];
-  char path[PATHSIZE];
+  char path[PATHSIZE] = SERVICE_PATH;
+  const int p_len_base = strlen(path);
+  p_len = p_len_base;
   int is_path = 0;
 
+  /*
+  Leemos letra por letra
+  Si letra = '\n'
+    ejecutar(nombre)
+  sino
+    append(nombre,letra)
+  hasta que letra == EOF
+  */
+
+  while(cur != EOF){
+    if(cur == '\n'){
+      run_sproc(name, n_len, path, p_len);
+      while(n_len >= 0){
+        name[n_len] = '\0';
+        path[n_len+p_len_base] = '\0';
+        n_len--;
+      }
+      n_len = 0;
+    }else{
+      if(n_len+1 < NAMESIZE){
+        name[n_len] = cur;
+        name[n_len + 1] = '\0';
+        n_len = n_len + 1;
+      }else{
+        perror("\nMaximum name size reached, exiting\n");
+        errlog = 1;
+        break; //sinful break
+               //GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+      }
+    }
+    cur = fgetc(fd);
+  }
+/*
   while(cur != EOF){
     if(cur == '\n'){
       if(is_path == 1){
@@ -255,7 +290,7 @@ int main(int argc, char * argv[], char * envp[]){
       cur = fgetc(fd);
     }
   }
-
+*/
   fclose(fd);
 
   // TODO: Add error handling for this case
