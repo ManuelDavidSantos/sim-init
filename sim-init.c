@@ -15,7 +15,7 @@
 
 #define NAMESIZE 1024
 #define PATHSIZE 1024
-#define SERVICE_PATH "/etc/services/"
+#define SERVICE_PATH "/etc/service/"
 volatile sig_atomic_t pwroff = 0;
 
 void sigusr1_handler(int signum){
