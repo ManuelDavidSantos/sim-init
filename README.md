@@ -125,4 +125,10 @@ The init can handle the following signals:
 
 - SIGUSR1 (10): It initiates the system's shutdown sequence. The `power-off` wrapper utility can be used for this purpouse.
 
+## TODO
 
+1- supervisor must create an up file in /var/log/services/
+2- sim-init must read just a service name list, all services are to be defined in /etc/services/<service>/
+3- supervisor must have the option to read a configuration file for it instead of receiving configuration flags
+4- supervisor config file must be able to state a dependency list
+5- fix strcat, change to snprintf

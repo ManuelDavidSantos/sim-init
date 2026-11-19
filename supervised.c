@@ -54,6 +54,78 @@ void sigusr_handler(int signum){
   kill_signal_received = 1;
 }
 
+int set_service_state_down(char *argv[]){
+  
+  char srv_path[256]="/var/log/services/";
+  strcat(srv_path, argv[2]);
+
+  struct stat st = {0};
+  if(stat(srv_path, &st) == -1){
+    if(mkdir(srv_path,0700) == -1){
+      return -1;
+    }
+  }
+
+  strcat(srv_path,"/up");
+ 
+  if(stat(srv_path, &st) == -1){
+    return -1;
+  } 
+  
+  if(remove(srv_path) != 0){
+    return -1;
+  }
+
+  return 0;
+
+}
+
+int set_service_state_up(char *argv[]){
+  
+  char srv_path[256]="/var/log/services/";
+  strcat(srv_path, argv[2]);
+
+  struct stat st = {0};
+  if(stat(srv_path, &st) == -1){
+    if(mkdir(srv_path,0700) == -1){
+      return -1;
+    }
+  }
+
+  strcat(srv_path,"/up");
+  
+  int fd = open(srv_path, O_CREAT | O_RDONLY | O_CLOEXEC, 0644);
+  close(fd);
+  return 0;
+
+}
+
+
+/*
+Opens the /var/log/services/<service>/log file to redirect output and errors into
+*/
+int open_log(char *argv[]){
+  
+  char log_path[256]="/var/log/services/";
+  strcat(log_path, argv[2]);
+
+  struct stat st = {0};
+  if(stat(log_path, &st) == -1){
+    if(mkdir(log_path,0700) == -1){
+      return -1;
+    }
+  }    
+  strcat(log_path,"/log");
+
+  int fd = open(log_path, O_APPEND | O_CREAT | O_WRONLY | O_CLOEXEC, 0644);
+  int fd_null = open("/dev/null", O_RDWR);
+  dup2(fd_null, STDIN);
+  dup2(fd, STDERR);
+  dup2(fd, STDOUT);
+  
+  return 0;
+}
+
 int run_service(char *argv[]){
   pid_t mypid = fork();
 
@@ -65,22 +137,8 @@ int run_service(char *argv[]){
     
     setpgid(0,0);
 
-    char dir_path[256]="/var/log/services/";
-    strcat(dir_path, argv[2]);
+    open_log(argv);
 
-    struct stat st = {0};
-    if(stat(dir_path, &st) == -1){
-      if(mkdir(dir_path,0700) == -1){
-        return -1;
-      }
-    }    
-    strcat(dir_path,"/log");
-
-    int fd = open(dir_path, O_APPEND | O_CREAT | O_WRONLY | O_CLOEXEC, 0644);
-    int fd_null = open("/dev/null", O_RDWR);
-    dup2(fd_null, STDIN);
-    dup2(fd, STDERR);
-    dup2(fd, STDOUT);
     char * args[] = {
       argv[1],
       NULL
@@ -182,6 +240,10 @@ int main(int argc, char *argv[], char *envp[]){
       childpid = run_service(argv);
       if(childpid == -1){
         perror("Failed to start service\n");
+        exit(1);
+      }
+      if(set_service_state_up(argv) == -1){
+        perror("Failed to set service state\n");
         exit(1);
       }
     }
