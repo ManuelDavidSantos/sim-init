@@ -84,7 +84,6 @@ pid_t run_sproc(char *name, int n_len, char *path, int p_len, char svarg[][NAMES
     argv[i + 3] = svarg[i];
   }
 
-  argv[MAXSVARGC+3] = NULL;
 
   for(int i = 0; i<MAXSVARGC+3; i++){
     printf("%s\n",argv[i]);
