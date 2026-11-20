@@ -236,12 +236,14 @@ int main(int argc, char * argv[], char * envp[]){
       }
       n_len = 0;
     }else{
-      if(n_len+1 < NAMESIZE){
+      if(p_len_base+n_len+2 < PATHSIZE && n_len+1 < NAMESIZE ){
         name[n_len] = cur;
         name[n_len + 1] = '\0';
+        path[n_len+p_len_base] = cur;
+        path[n_len+p_len_base+1] = '\0';
         n_len = n_len + 1;
       }else{
-        perror("\nMaximum name size reached, exiting\n");
+        fprintf(stderr,"\nMaximum name size reached, exiting\n");
         errlog = 1;
         break; //sinful break
                // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
