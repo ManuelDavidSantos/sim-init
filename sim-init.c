@@ -226,6 +226,7 @@ int main(int argc, char * argv[], char * envp[]){
   */
 
   while(cur != EOF){
+    printf("%c",cur);
     if(cur == '\n'){
       run_sproc(name, n_len, path, p_len);
       while(n_len >= 0){
@@ -243,7 +244,7 @@ int main(int argc, char * argv[], char * envp[]){
         perror("\nMaximum name size reached, exiting\n");
         errlog = 1;
         break; //sinful break
-               //GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+               // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
       }
     }
     cur = fgetc(fd);
