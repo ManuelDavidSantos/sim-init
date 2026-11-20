@@ -121,7 +121,7 @@ int setup(pid_t my_pid,char * envp[]){
   return 0;
 }
 
-int power_off(pid_t *list, int len, char  * envp[]){
+int power_off(pid_t *list, int len, char  * envp[], int do_reboot){
   char * argv[] = {
     "shutdown",
     NULL
@@ -152,7 +152,12 @@ int power_off(pid_t *list, int len, char  * envp[]){
   kill(-1, SIGKILL);
   sync();
   void *vargs =NULL;
-  syscall(SYS_reboot,LINUX_REBOOT_MAGIC1,LINUX_REBOOT_MAGIC2,LINUX_REBOOT_CMD_POWER_OFF,vargs);
+  if(do_reboot == 0){
+    syscall(SYS_reboot,LINUX_REBOOT_MAGIC1,LINUX_REBOOT_MAGIC2,LINUX_REBOOT_CMD_POWER_OFF,vargs);
+  }else{
+    syscall(SYS_reboot,LINUX_REBOOT_MAGIC1,LINUX_REBOOT_MAGIC2,LINUX_REBOOT_CMD_RESTART,vargs);
+  }
+
   return 0;
 }
 
@@ -233,7 +238,7 @@ int main(int argc, char * argv[], char * envp[]){
         strcat(path,name);
         for(int i = 0; i<svargc; i++){
           svargv[i + 3] = svarg[i];
-          printf("%s\n",svarg[i]);
+          //printf("%s\n",svarg[i]);
         }
 
         run_sproc(svargv);
@@ -292,49 +297,7 @@ int main(int argc, char * argv[], char * envp[]){
     }
     cur = fgetc(fd);
   }
-/*
-  while(cur != EOF){
-    if(cur == '\n'){
-      if(is_path == 1){
-        while(p_len >= 0){
-          path[p_len] = '\0';
-          p_len--;
-        }
-        snprintf(path,sizeof(path),"%s",name);
-        p_len = n_len;
-        while(n_len >= 0){
-          name[n_len] = '\0';
-          n_len--;
-        }
-        n_len = 0;
-        is_path = 0;
-        
-        cur = fgetc(fd);
 
-      }else{
-        plist[plist_len] = run_sproc(&name[0],n_len,path,p_len);
-        plist_len++;
-        cur = fgetc(fd);
-        n_len = 0;
-        p_len = 0;
-      }
-    }else{
-      if(cur=='/'){
-        is_path = 1;
-      }
-      name[n_len] = cur;
-      if( n_len+1 <NAMESIZE ){
-        name[n_len+1]='\0';
-      }else{
-        perror("\nMaximum name size reached, exiting\n");
-        errlog = 1;
-        break; //sinful break
-      }
-      n_len++;
-      cur = fgetc(fd);
-    }
-  }
-*/
   fclose(fd);
 
   // TODO: Add error handling for this case
@@ -378,7 +341,12 @@ int main(int argc, char * argv[], char * envp[]){
   while (1) {
     sigsuspend(&orig);
     if(pwroff == 1){
-      power_off(plist,plist_len,envp);
+      int reboot = 0;
+      struct stat st = {0};
+      if(stat("/var/log/services/reboot", &st) == 0){
+        reboot = 1;
+      }
+      power_off(plist,plist_len,envp,reboot);
     }
   }
   return 0;

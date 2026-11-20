@@ -1,0 +1,7 @@
+#!/bin/sh
+if [ ! -f /var/log/services/reboot ]; then
+  touch /var/log/services/reboot
+fi
+kill -10 1
+
+#That's it, keep it stupid-simple.
