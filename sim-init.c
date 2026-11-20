@@ -86,6 +86,10 @@ pid_t run_sproc(char *name, int n_len, char *path, int p_len, char svarg[][NAMES
 
   argv[MAXSVARGC+3] = NULL;
 
+  for(int i = 0; i<MAXSVARGC+3; i++){
+    printf("%s\n",argv[i]);
+  }
+
   pid_t pid = fork();
   if(pid < 0){
     perror("Error forking process\n");
@@ -222,17 +226,7 @@ int main(int argc, char * argv[], char * envp[]){
   char svarg[MAXSVARGC][NAMESIZE];
   const int p_len_base = strlen(path);
 
-  /*
-  Leemos letra por letra
-  Si letra = '\n'
-    ejecutar(nombre)
-  sino
-    append(nombre,letra)
-  hasta que letra == EOF
-  */
-
   while(cur != EOF){
-    printf("%c",cur);
     if(cur == '\n'){
       run_sproc(name, n_len, path, p_len_base+n_len+1, svarg, svargc);
       svargc = 0;
@@ -246,6 +240,7 @@ int main(int argc, char * argv[], char * envp[]){
       n_len = 0;
     }else{
       if(cur != ' '){
+        //  TODO: Add exit if size overflow don't just continue
         if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
           svarg[svargc][arg_len] = cur;
           svarg[svargc][arg_len+1]='\0';
