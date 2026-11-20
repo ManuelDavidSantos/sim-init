@@ -10,11 +10,13 @@ El sistema actual está configurado para funcionar de dos formas distintas, usan
 
 SimpleInit y Supervised consisten de un solo binario cada uno, ambos residen en `/bin`, además el binario de SimpleInit debe ser apuntado en la configuración del sistema como PID 1. Los archivos de configuración se almacenan en `/etc/sim-init/`, estos consisten de `r0`, `basics` y `shutdown`. Los archivos `basics` y `shutdown` deben ser ejecutables, en el ejemplo son scripts en bash, `basics` realiza la configuración inicial y todas las tareas _"básicas"_ para el funcionamiento del sistema, en cambio `shutdown` prepara al sistema para apagarse antes de que SimpleInit llame al kernel a apagar el equipo. Los runlevels del sistema se configurarán en archivos `rN`, donde N es el nivel. Actualmente solo hay soporte para un único runlevel por lo que solo hace falta tener `r0` en el directorio. Hace falta un directorio services en `/var/log/` para que supervised pueda funcionar. Finalmente algunas utilidades del sistema se almacenaran también en `/bin/`. Entonces la estructura del sistema de archivos se verá de este modo:
 
+
 ```
 /bin/
 |   sim-init
 |   supervised
 |   power-off
+|   re-boot
 ...
 /var/
 |   log/
@@ -25,33 +27,30 @@ SimpleInit y Supervised consisten de un solo binario cada uno, ambos residen en 
 |   |       r0
 |   |       basics
 |   |       shutdown
+|   service/
+|   |       <SERVICE_NAME>/
+|   |       |              <SERVICE_NAME>
+|   |       |              config
+
 ```
 El archivo `r0` se configura con el siguiente formato:
 
 La sintaxis del archivo se compone de bloques consecutivos con la siguiente estructura:
 
 ```
-<PATH>
-<FILE_NAME>
-<FILE_NAME_2>
+<FILE_NAME> [OPTIONS]
+<FILE_NAME_2> [OPTIONS]
+<FILE_NAME_3> [OPTIONS]
 ...
-<PATH_2>
-<FILE_NAME>
-...
-
 ```
 
 Donde:
-
-PATH
-    Es una línea de texto que termina en "/".
-    Establece el directorio base de trabajo para las líneas
-    subsiguientes. (ej. /etc/services/).
-
 FILE_NAME
     Es una línea de texto que NO CONTIENE "/".
-    Representa el nombre de un ejecutable o script ubicado en
-    el <PATH> actual (ej. dbus, tty1).
+    Representa el nombre de un ejecutable o script ubicado en `/etc/service/<FILE_NAME>/` (ej. dbus, tty1).
+
+OPTIONS
+    Pueden ser las opciones envíadas a supervised, por ejemplo `o` hace que el servicio se ejecute como un oneshot.
 
 #### Señales admitidas
 
@@ -61,7 +60,7 @@ El supervisor pude recibir las siguientes señales:
 
 El init puede recibir las siguientes señales:
 
-- SIGUSR1 (10): Inicia la secuencia de apagado del sistema. Se puede usar el wrapper `power-off` como utilidad para este propósito.
+- SIGUSR1 (10): Inicia la secuencia de apagado del sistema. Se pueden usar `power-off` y `re-boot` como utilidades para este propósito.
 
 ### Usage Manual
 
@@ -76,6 +75,7 @@ SimpleInit and Supervised each consist of a single binary; both reside in `/bin`
 |   sim-init
 |   supervised
 |   power-off
+|   re-boot
 ...
 /var/
 |   log/
@@ -86,6 +86,10 @@ SimpleInit and Supervised each consist of a single binary; both reside in `/bin`
 |   |       r0
 |   |       basics
 |   |       shutdown
+|   service/
+|   |       <SERVICE_NAME>/
+|   |       |              <SERVICE_NAME>
+|   |       |              config
 
 ```
 
@@ -94,26 +98,20 @@ The r0 file is configured with the following format:
 The file syntax consists of consecutive blocks with the following structure:
 
 ```
-<PATH>
-<FILE_NAME>
-<FILE_NAME_2>
-...
-<PATH_2>
-<FILE_NAME>
+<FILE_NAME> [OPTIONS]
+<FILE_NAME_2> [OPTIONS]
+<FILE_NAME_3> [OPTIONS]
 ...
 ```
 
 Where:
 
-PATH
-    Is a line of text that ends with "/".
-    It establishes the base working directory for the subsequent
-    lines (e.g., /etc/services/).
-
 FILE_NAME
     Is a line of text that DOES NOT CONTAIN "/".
-    It represents the name of an executable or script located in
-    the current <PATH> (e.g., dbus, tty1).
+    It represents the name of an executable or script located in `/etc/service/<FILE_NAME>/` (e.g., dbus, tty1).
+
+OPTIONS
+    Can be the options passed to supervised, for example `o` makes the service run as a oneshot.
 
 #### Admitted signals
 
@@ -123,12 +121,12 @@ The supervisor can handle the following signals:
 
 The init can handle the following signals:
 
-- SIGUSR1 (10): It initiates the system's shutdown sequence. The `power-off` wrapper utility can be used for this purpouse.
+- SIGUSR1 (10): It initiates the system's shutdown sequence. The `power-off` and `re-boot` wrapper utilities can be used for this purpouse.
 
 ## TODO
 
 - [x] supervisor must create an up file in /var/log/services/
-2- sim-init must read just a service name list, all services are to be defined in /etc/services/<service>/
-3- supervisor must have the option to read a configuration file for it instead of receiving configuration flags
-4- supervisor config file must be able to state a dependency list
-5- fix strcat, change to snprintf
+- [x] sim-init must read just a service name list, all services are to be defined in /etc/services/<service>/
+- [ ] supervisor must have the option to read a configuration file for it instead of receiving configuration flags
+- [ ] supervisor config file must be able to state a dependency list
+- [ ] fix strcat, change to snprintf
