@@ -212,6 +212,19 @@ int main(int argc, char * argv[], char * envp[]){
     if(skip == 1){
       if(cur == '\n'){
         skip = 0;
+        while(svargc >= 0){
+          svargv[svargc + 3] = NULL;
+          svargc--;
+        }
+        svargc = 0;
+        arg_len = 0;
+        nameflag = 0;
+        while(n_len >= 0){
+          name[n_len] = '\0';
+          path[n_len+p_len_base] = '\0';
+          n_len--;
+        }
+        n_len = 0;
       }
     }else{
       if(cur == '\n'){
@@ -239,24 +252,27 @@ int main(int argc, char * argv[], char * envp[]){
         n_len = 0;
       }else{
         if(cur != ' '){
-          //  TODO: Add exit if size overflow don't just continue
-          if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
-            svarg[svargc][arg_len] = cur;
-            svarg[svargc][arg_len+1]='\0';
-            arg_len++;
+          if(svargc >= MAXSVARGC || arg_len+1>=NAMESIZE){
+            skip = 1;
           }else{
-            if(p_len_base+n_len+3 < PATHSIZE && n_len+1 < NAMESIZE ){
-              name[n_len] = cur;
-              name[n_len + 1] = '\0';
-              path[n_len+p_len_base] = cur;
-              path[n_len+p_len_base+1] = '/';
-              path[n_len+p_len_base+2] = '\0';
-              n_len = n_len + 1;
+            if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
+              svarg[svargc][arg_len] = cur;
+              svarg[svargc][arg_len+1]='\0';
+              arg_len++;
             }else{
-              fprintf(stderr,"\nMaximum name size reached, exiting\n");
-              errlog = 1;
-              break; //sinful break
-                     // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+              if(p_len_base+n_len+3 < PATHSIZE && n_len+1 < NAMESIZE ){
+                name[n_len] = cur;
+                name[n_len + 1] = '\0';
+                path[n_len+p_len_base] = cur;
+                path[n_len+p_len_base+1] = '/';
+                path[n_len+p_len_base+2] = '\0';
+                n_len = n_len + 1;
+              }else{
+                fprintf(stderr,"\nMaximum name size reached, exiting\n");
+                errlog = 1;
+                break; //sinful break
+                       // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+              }
             }
           }
         }else{
@@ -268,19 +284,6 @@ int main(int argc, char * argv[], char * envp[]){
             if(svargc > MAXSVARGC){
               fprintf(stderr,"WARNING: Argument count can't exceed %i\nProceeding to the next service\n",MAXSVARGC);
               svargc--;
-              while(svargc >= 0){
-                  svargv[svargc + 3] = NULL;
-                  svargc--;
-              }
-              svargc = 0;
-              arg_len = 0;
-              nameflag = 0;
-              while(n_len >= 0){
-                name[n_len] = '\0';
-                path[n_len+p_len_base] = '\0';
-                n_len--;
-              }
-              n_len = 0;
               skip = 1;
             }
           }
