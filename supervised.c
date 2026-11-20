@@ -169,6 +169,8 @@ int main(int argc, char *argv[], char *envp[]){
   int one_shot = 0;
 
   if(argc == 4 && *argv[3] == 'o'){
+    printf("ONESHOTTING IT\n");
+    fflush(stdout);
     one_shot = 1;
   }
 
