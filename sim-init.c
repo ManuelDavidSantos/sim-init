@@ -15,6 +15,7 @@
 
 #define NAMESIZE 1024
 #define PATHSIZE 1024
+#define MAXSVARGC 10
 #define SERVICE_PATH "/etc/service/"
 volatile sig_atomic_t pwroff = 0;
 
@@ -65,7 +66,7 @@ int run_proc(char *name, int n_len, char *path, int p_len){
   return 0;
 }
 
-pid_t run_sproc(char *name, int n_len, char *path, int p_len){
+pid_t run_sproc(char *name, int n_len, char *path, int p_len, char svarg[][NAMESIZE], int svargc){
   
   int length = n_len+p_len+1; 
   char p_name[length];
@@ -73,12 +74,17 @@ pid_t run_sproc(char *name, int n_len, char *path, int p_len){
   strcpy(p_name,path); 
   strcat(p_name,name);
   
-  char * argv[] = {
+  char * argv[MAXSVARGC + 4] = {
     "supervised",
     p_name,
-    name,
-    NULL
+    name
   };
+
+  for(int i = 0; i<svargc; i++){
+    argv[i + 3] = svarg[i];
+  }
+
+  argv[MAXSVARGC+3] = NULL;
 
   pid_t pid = fork();
   if(pid < 0){
@@ -206,15 +212,15 @@ int main(int argc, char * argv[], char * envp[]){
   }
 
   int n_len = 0;
-  int p_len = 0;
   int errlog = 0;
-  char data[256];
+  int svargc = 0;
+  int arg_len = 0;
+  int nameflag = 0;
   int cur = fgetc(fd);
   char name[NAMESIZE];
   char path[PATHSIZE] = SERVICE_PATH;
+  char svarg[MAXSVARGC][NAMESIZE];
   const int p_len_base = strlen(path);
-  p_len = p_len_base;
-  int is_path = 0;
 
   /*
   Leemos letra por letra
@@ -228,7 +234,10 @@ int main(int argc, char * argv[], char * envp[]){
   while(cur != EOF){
     printf("%c",cur);
     if(cur == '\n'){
-      run_sproc(name, n_len, path, p_len);
+      run_sproc(name, n_len, path, p_len_base+n_len+1, svarg, svargc);
+      svargc = 0;
+      arg_len = 0;
+      nameflag = 0;
       while(n_len >= 0){
         name[n_len] = '\0';
         path[n_len+p_len_base] = '\0';
@@ -236,17 +245,33 @@ int main(int argc, char * argv[], char * envp[]){
       }
       n_len = 0;
     }else{
-      if(p_len_base+n_len+2 < PATHSIZE && n_len+1 < NAMESIZE ){
-        name[n_len] = cur;
-        name[n_len + 1] = '\0';
-        path[n_len+p_len_base] = cur;
-        path[n_len+p_len_base+1] = '\0';
-        n_len = n_len + 1;
+      if(cur != ' '){
+        if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
+          svarg[svargc][arg_len] = cur;
+          svarg[svargc][arg_len+1]='\0';
+          arg_len++;
+        }else{
+          if(p_len_base+n_len+3 < PATHSIZE && n_len+1 < NAMESIZE ){
+            name[n_len] = cur;
+            name[n_len + 1] = '\0';
+            path[n_len+p_len_base] = cur;
+            path[n_len+p_len_base+1] = '/';
+            path[n_len+p_len_base+2] = '\0';
+            n_len = n_len + 1;
+          }else{
+            fprintf(stderr,"\nMaximum name size reached, exiting\n");
+            errlog = 1;
+            break; //sinful break
+                   // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+          }
+        }
       }else{
-        fprintf(stderr,"\nMaximum name size reached, exiting\n");
-        errlog = 1;
-        break; //sinful break
-               // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+        if(nameflag == 0){
+          nameflag = 1;
+        }else{
+          arg_len = 0;
+          svargc++;
+        }
       }
     }
     cur = fgetc(fd);
