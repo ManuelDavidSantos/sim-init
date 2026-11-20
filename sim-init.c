@@ -66,38 +66,14 @@ int run_proc(char *name, int n_len, char *path, int p_len){
   return 0;
 }
 
-pid_t run_sproc(char *name, int n_len, char *path, int p_len, char svarg[][NAMESIZE], int svargc){
+pid_t run_sproc(char *argv[]){
   
-  int length = n_len+p_len+1; 
-  char p_name[length];
-  
-  strcpy(p_name,path); 
-  strcat(p_name,name);
-  
-  char * argv[MAXSVARGC + 4] = {
-    "supervised",
-    p_name,
-    name
-  };
-
-  for(int i = 0; i<svargc; i++){
-    argv[i + 3] = svarg[i];
-  }
-
-
-  for(int i = 0; i<MAXSVARGC+3; i++){
-    printf("%s\n",argv[i]);
-  }
-
   pid_t pid = fork();
   if(pid < 0){
     perror("Error forking process\n");
     return -1;
   }
   if(pid == 0){
-    printf("\nexecuting:%s\n",p_name);
-    fflush(stdout);
-    
     execvp("/bin/supervised",argv);
 
     perror("\nFailed to execvp \n");
@@ -219,52 +195,95 @@ int main(int argc, char * argv[], char * envp[]){
   int svargc = 0;
   int arg_len = 0;
   int nameflag = 0;
+  int skip = 0;
   int cur = fgetc(fd);
   char name[NAMESIZE];
   char path[PATHSIZE] = SERVICE_PATH;
   char svarg[MAXSVARGC][NAMESIZE];
   const int p_len_base = strlen(path);
 
+  char * svargv[MAXSVARGC + 4] = {
+    "supervised",
+    path,
+    name
+  };
+
   while(cur != EOF){
-    if(cur == '\n'){
-      run_sproc(name, n_len, path, p_len_base+n_len+1, svarg, svargc);
-      svargc = 0;
-      arg_len = 0;
-      nameflag = 0;
-      while(n_len >= 0){
-        name[n_len] = '\0';
-        path[n_len+p_len_base] = '\0';
-        n_len--;
+    if(skip == 1){
+      if(cur == '\n'){
+        skip = 0;
       }
-      n_len = 0;
     }else{
-      if(cur != ' '){
-        //  TODO: Add exit if size overflow don't just continue
-        if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
-          svarg[svargc][arg_len] = cur;
-          svarg[svargc][arg_len+1]='\0';
-          arg_len++;
-        }else{
-          if(p_len_base+n_len+3 < PATHSIZE && n_len+1 < NAMESIZE ){
-            name[n_len] = cur;
-            name[n_len + 1] = '\0';
-            path[n_len+p_len_base] = cur;
-            path[n_len+p_len_base+1] = '/';
-            path[n_len+p_len_base+2] = '\0';
-            n_len = n_len + 1;
-          }else{
-            fprintf(stderr,"\nMaximum name size reached, exiting\n");
-            errlog = 1;
-            break; //sinful break
-                   // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
-          }
+      if(cur == '\n'){
+        if(nameflag==1) svargc++;
+
+        strcat(path,name);
+        for(int i = 0; i<svargc; i++){
+          svargv[i + 3] = svarg[i];
+          printf("%s\n",svarg[i]);
         }
+
+        run_sproc(svargv);
+        while(svargc >= 0){
+          svargv[svargc + 3] = NULL;
+          svargc--;
+        }
+        svargc = 0;
+        arg_len = 0;
+        nameflag = 0;
+        while(n_len >= 0){
+          name[n_len] = '\0';
+          path[n_len+p_len_base] = '\0';
+          n_len--;
+        }
+        n_len = 0;
       }else{
-        if(nameflag == 0){
-          nameflag = 1;
+        if(cur != ' '){
+          //  TODO: Add exit if size overflow don't just continue
+          if(nameflag == 1 && svargc < MAXSVARGC && arg_len+1<NAMESIZE){
+            svarg[svargc][arg_len] = cur;
+            svarg[svargc][arg_len+1]='\0';
+            arg_len++;
+          }else{
+            if(p_len_base+n_len+3 < PATHSIZE && n_len+1 < NAMESIZE ){
+              name[n_len] = cur;
+              name[n_len + 1] = '\0';
+              path[n_len+p_len_base] = cur;
+              path[n_len+p_len_base+1] = '/';
+              path[n_len+p_len_base+2] = '\0';
+              n_len = n_len + 1;
+            }else{
+              fprintf(stderr,"\nMaximum name size reached, exiting\n");
+              errlog = 1;
+              break; //sinful break
+                     // TODO:GREAT PLACE TO PANIC LAUNCH EMERGENCY SHELL
+            }
+          }
         }else{
-          arg_len = 0;
-          svargc++;
+          if(nameflag == 0){
+            nameflag = 1;
+          }else{
+            arg_len = 0;
+            svargc++;
+            if(svargc > MAXSVARGC){
+              fprintf(stderr,"WARNING: Argument count can't exceed %i\nProceeding to the next service\n",MAXSVARGC);
+              svargc--;
+              while(svargc >= 0){
+                  svargv[svargc + 3] = NULL;
+                  svargc--;
+              }
+              svargc = 0;
+              arg_len = 0;
+              nameflag = 0;
+              while(n_len >= 0){
+                name[n_len] = '\0';
+                path[n_len+p_len_base] = '\0';
+                n_len--;
+              }
+              n_len = 0;
+              skip = 1;
+            }
+          }
         }
       }
     }
